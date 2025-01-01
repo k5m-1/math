@@ -3,114 +3,121 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Find Roots with Graph</title>
-    <script src="https://cdn.plot.ly/plotly-2.26.0.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/pyodide/v0.23.3/full/pyodide.js"></script>
+    <title>체커 게임</title>
     <style>
         body {
             font-family: Arial, sans-serif;
-            max-width: 600px;
-            margin: 0 auto;
-            padding: 20px;
+            text-align: center;
+            background-color: #f4f4f4;
         }
-        input, button {
-            margin: 10px 0;
-            padding: 8px;
-            width: 100%;
-            box-sizing: border-box;
+
+        .board {
+            display: grid;
+            grid-template-columns: repeat(8, 50px);
+            grid-template-rows: repeat(8, 50px);
+            gap: 2px;
+            margin: 20px auto;
+            width: fit-content;
         }
-        #graph {
-            width: 100%;
-            height: 400px;
+
+        .cell {
+            width: 50px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .cell.dark {
+            background-color: #333;
+        }
+
+        .cell.light {
+            background-color: #eee;
+        }
+
+        .piece {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+        }
+
+        .piece.player {
+            background-color: red;
+        }
+
+        .piece.ai {
+            background-color: black;
+        }
+
+        #status {
+            margin: 20px;
+            font-size: 1.2em;
+        }
+
+        button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            font-size: 1em;
+            cursor: pointer;
         }
     </style>
 </head>
 <body>
-    <h1>Find Roots and Plot Function</h1>
-    <label for="function">Enter function (e.g., x**3 - x):</label>
-    <input type="text" id="function" placeholder="Enter function here">
-    <label for="range">Enter range (a, b):</label>
-    <input type="text" id="range" placeholder="e.g., -2, 2">
-    <button onclick="runPythonCode()">Find Roots and Plot</button>
-    <h2>Results</h2>
-    <div id="results"></div>
-    <div id="graph"></div>
+    <h1>체커 게임</h1>
+    <div id="status">플레이어의 차례입니다!</div>
+    <div class="board" id="board"></div>
+    <button id="reset">게임 다시 시작</button>
 
     <script>
-        async function runPythonCode() {
-            const pyodide = await loadPyodide();
-            const funcInput = document.getElementById("function").value;
-            const rangeInput = document.getElementById("range").value.split(",").map(Number);
+        const boardElement = document.getElementById('board');
+        const statusElement = document.getElementById('status');
+        const resetButton = document.getElementById('reset');
 
-            const pythonCode = `
-import numpy as np
-import math
-import matplotlib.pyplot as plt
+        const board = Array(8).fill(null).map(() => Array(8).fill(null));
 
-def find_roots(f, a, b, tol=1e-6, subdiv=1000):
-    x_vals = np.linspace(a, b, subdiv + 1)
-    roots = []
-    for i in range(len(x_vals) - 1):
-        x1, x2 = x_vals[i], x_vals[i + 1]
-        if f(x1) * f(x2) < 0:  
-            root = bisection_method(f, x1, x2, tol)
-            roots.append(root)
-    if f(0) == 0:
-        roots.append(0)
-    roots = list(set(np.round(roots, decimals=6))) 
-    return roots
+        const PLAYER = 'player';
+        const AI = 'ai';
 
-def bisection_method(f, a, b, tol=1e-6):
-    while (b - a) / 2 > tol:
-        c = (a + b) / 2
-        if f(c) == 0:
-            return c
-        elif f(a) * f(c) < 0:
-            b = c
-        else:
-            a = c
-    return (a + b) / 2
-
-f = lambda x: ${funcInput.replace('^', '**')}
-a, b = ${JSON.stringify(rangeInput)}
-roots = find_roots(f, a, b)
-
-import json
-x_vals = np.linspace(a, b, 500)
-y_vals = [f(x) for x in x_vals]
-graph_data = json.dumps({
-    "x": x_vals.tolist(),
-    "y": y_vals,
-    "roots": roots
-})
-graph_data
-`;
-
-            const results = await pyodide.runPythonAsync(pythonCode);
-            const data = JSON.parse(results);
-
-            document.getElementById("results").innerText = `Roots: ${data.roots}`;
-
-            Plotly.newPlot('graph', [
-                {
-                    x: data.x,
-                    y: data.y,
-                    mode: 'lines',
-                    name: 'Function'
-                },
-                {
-                    x: data.roots,
-                    y: data.roots.map(() => 0),
-                    mode: 'markers',
-                    name: 'Roots',
-                    marker: { color: 'red', size: 8 }
+        function initBoard() {
+            boardElement.innerHTML = '';
+            for (let row = 0; row < 8; row++) {
+                for (let col = 0; col < 8; col++) {
+                    const cell = document.createElement('div');
+                    cell.classList.add('cell');
+                    if ((row + col) % 2 === 1) {
+                        cell.classList.add('dark');
+                        if (row < 3) {
+                            board[row][col] = AI;
+                            const piece = document.createElement('div');
+                            piece.classList.add('piece', 'ai');
+                            cell.appendChild(piece);
+                        } else if (row > 4) {
+                            board[row][col] = PLAYER;
+                            const piece = document.createElement('div');
+                            piece.classList.add('piece', 'player');
+                            cell.appendChild(piece);
+                        }
+                    } else {
+                        cell.classList.add('light');
+                    }
+                    boardElement.appendChild(cell);
                 }
-            ], {
-                title: 'Function Graph',
-                xaxis: { title: 'x' },
-                yaxis: { title: 'f(x)' }
-            });
+            }
         }
+
+        function resetGame() {
+            for (let row = 0; row < 8; row++) {
+                for (let col = 0; col < 8; col++) {
+                    board[row][col] = null;
+                }
+            }
+            initBoard();
+            statusElement.textContent = '플레이어의 차례입니다!';
+        }
+
+        resetButton.addEventListener('click', resetGame);
+        initBoard();
     </script>
 </body>
 </html>
